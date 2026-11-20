@@ -1,0 +1,68 @@
+name: C - parallel scans
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gitleaks
+        run: docker run --rm -v "$PWD":/path ghcr.io/gitleaks/gitleaks:latest dir /path --exit-code 0
+
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Trivy cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-${{ github.run_id }}
+          restore-keys: trivy-
+
+      - name: Build Docker image
+        run: docker build -t juice-shop:test .
+
+      - name: Trivy
+        run: |
+          mkdir -p ~/.cache/trivy
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $HOME/.cache/trivy:/root/.cache/trivy \
+            aquasec/trivy:0.72.0 image --exit-code 0 --severity HIGH,CRITICAL juice-shop:test
+          sudo chown -R "$USER" ~/.cache/trivy
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Dependency-Check cache
+        uses: actions/cache@v4
+        with:
+          path: ~/odc-data
+          key: odc-${{ github.run_id }}
+          restore-keys: odc-
+
+      - name: Generate lock files
+        run: |
+          npm install --package-lock-only --package-lock=true --ignore-scripts --no-audit --no-fund
+          npm install --package-lock-only --package-lock=true --ignore-scripts --no-audit --no-fund --prefix frontend
+
+      - name: Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          mkdir -p ~/odc-data ~/odc-reports
+          docker run --rm \
+            -u $(id -u):$(id -g) \
+            -v "$PWD":/src \
+            -v $HOME/odc-data:/usr/share/dependency-check/data \
+            -v $HOME/odc-reports:/report \
+            owasp/dependency-check:latest \
+            --scan /src --exclude "**/test/**" --format HTML --project juice-shop --out /report \
+            --nvdApiKey "$NVD_API_KEY"
