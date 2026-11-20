@@ -37,6 +37,11 @@ jobs:
             -v $HOME/.cache/trivy:/root/.cache/trivy \
             aquasec/trivy:0.72.0 image --exit-code 0 --severity HIGH,CRITICAL juice-shop:test
 
+            - name: Generate lock files
+        run: |
+          npm install --package-lock-only --package-lock=true --ignore-scripts --no-audit --no-fund
+          npm install --package-lock-only --package-lock=true --ignore-scripts --no-audit --no-fund --prefix frontend
+
       - name: Dependency-Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
@@ -48,5 +53,5 @@ jobs:
             -v $HOME/odc-data:/usr/share/dependency-check/data \
             -v $HOME/odc-reports:/report \
             owasp/dependency-check:latest \
-            --scan /src --format HTML --project juice-shop --out /report \
+            --scan /src --exclude "**/test/**" --format HTML --project juice-shop --out /report \
             --nvdApiKey "$NVD_API_KEY"
