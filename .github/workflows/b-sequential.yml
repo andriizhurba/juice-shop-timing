@@ -36,6 +36,7 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v $HOME/.cache/trivy:/root/.cache/trivy \
             aquasec/trivy:0.72.0 image --exit-code 0 --severity HIGH,CRITICAL juice-shop:test
+          sudo chown -R "$USER" ~/.cache/trivy
 
       - name: Generate lock files
         run: |
